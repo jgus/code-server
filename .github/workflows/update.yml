@@ -34,22 +34,22 @@ jobs:
           version="${{ steps.check.outputs.latest }}"
           sed -i "s/version = \".*\"/version = \"${version}\"/" flake.nix
 
-          amd64_hash=$(nix hash convert --to sri --hash-algo sha256 \
-            $(nix-prefetch-url \
-              "https://github.com/coder/code-server/releases/download/v${version}/code-server-${version}-linux-amd64.tar.gz" \
-              2>/dev/null))
+          declare -A platforms=(
+            [linux-amd64]="x86_64-linux"
+            [linux-arm64]="aarch64-linux"
+            [linux-armv7l]="armv7l-linux"
+            [macos-amd64]="x86_64-darwin"
+            [macos-arm64]="aarch64-darwin"
+          )
 
-          arm64_hash=$(nix hash convert --to sri --hash-algo sha256 \
-            $(nix-prefetch-url \
-              "https://github.com/coder/code-server/releases/download/v${version}/code-server-${version}-linux-arm64.tar.gz" \
-              2>/dev/null))
-
-          awk -v h1="$amd64_hash" -v h2="$arm64_hash" '
-            /hash = "sha256-/ { count++
-              if (count == 1) sub(/hash = "sha256-[^"]*"/, "hash = \"" h1 "\"")
-              else if (count == 2) sub(/hash = "sha256-[^"]*"/, "hash = \"" h2 "\"")
-            } {print}
-          ' flake.nix > flake.nix.tmp && mv flake.nix.tmp flake.nix
+          for platform in "${!platforms[@]}"; do
+            nix_system="${platforms[$platform]}"
+            hash=$(nix hash convert --to sri --hash-algo sha256 \
+              $(nix-prefetch-url \
+                "https://github.com/coder/code-server/releases/download/v${version}/code-server-${version}-${platform}.tar.gz" \
+                2>/dev/null))
+            sed -i "/${nix_system}.*=.*{/,/};/{s|hash = \"sha256-[^\"]*\"|hash = \"${hash}\"|}" flake.nix
+          done
 
       - name: Update flake lock
         if: steps.check.outputs.update == 'true'
