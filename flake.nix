@@ -18,18 +18,18 @@
       # To update: change version, then set both hashes to "" and build.
       # The error messages will contain the correct hashes.
       # Release tags: https://github.com/coder/code-server/releases
-      version = "4.109.2";
+      version = "4.111.0";
 
       src =
         let
           sources = {
             "x86_64-linux" = pkgs.fetchurl {
               url = "https://github.com/coder/code-server/releases/download/v${version}/code-server-${version}-linux-amd64.tar.gz";
-              hash = "sha256-PlT5G09+LM8v4U4w/c74gxfIPdvgbRrypbhTKZb/vh4=";
+              hash = "sha256-OPw+d3kdacQP5AD7m2gbto0yCn/vi09Re/6WtTzv8K0=";
             };
             "aarch64-linux" = pkgs.fetchurl {
               url = "https://github.com/coder/code-server/releases/download/v${version}/code-server-${version}-linux-arm64.tar.gz";
-              hash = "sha256-JxrG7CTHKDlX/clY/hlsUXThfqZxOZd7reTKjzHFDww=";
+              hash = "sha256-BctYlG5qMIsSXTQOhzg2kgcnyS9jAGgVo45zWkQYz08=";
             };
           };
         in
