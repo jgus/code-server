@@ -1,0 +1,68 @@
+name: Update code-server
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+
+      - name: Check for new release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(grep 'version = ' flake.nix | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          latest=$(gh api repos/coder/code-server/releases/latest --jq '.tag_name' | sed 's/^v//')
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          if [ "$current" != "$latest" ]; then
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update version and hashes
+        if: steps.check.outputs.update == 'true'
+        run: |
+          version="${{ steps.check.outputs.latest }}"
+          sed -i "s/version = \".*\"/version = \"${version}\"/" flake.nix
+
+          amd64_hash=$(nix hash convert --to sri --hash-algo sha256 \
+            $(nix-prefetch-url \
+              "https://github.com/coder/code-server/releases/download/v${version}/code-server-${version}-linux-amd64.tar.gz" \
+              2>/dev/null))
+
+          arm64_hash=$(nix hash convert --to sri --hash-algo sha256 \
+            $(nix-prefetch-url \
+              "https://github.com/coder/code-server/releases/download/v${version}/code-server-${version}-linux-arm64.tar.gz" \
+              2>/dev/null))
+
+          awk -v h1="$amd64_hash" -v h2="$arm64_hash" '
+            /hash = "sha256-/ { count++
+              if (count == 1) sub(/hash = "sha256-[^"]*"/, "hash = \"" h1 "\"")
+              else if (count == 2) sub(/hash = "sha256-[^"]*"/, "hash = \"" h2 "\"")
+            } {print}
+          ' flake.nix > flake.nix.tmp && mv flake.nix.tmp flake.nix
+
+      - name: Update flake lock
+        if: steps.check.outputs.update == 'true'
+        run: nix flake update
+
+      - name: Commit and tag
+        if: steps.check.outputs.update == 'true'
+        run: |
+          version="${{ steps.check.outputs.latest }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add flake.nix flake.lock
+          git commit -m "Update code-server to v${version}"
+          git tag "v${version}"
+          git push
+          git push --tags
